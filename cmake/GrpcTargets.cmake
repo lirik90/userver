@@ -45,7 +45,7 @@ if(NOT USERVER_IMPL_GRPC_REQUIREMENTS_CHECKED)
   endif()
   execute_process(
     COMMAND "${PYTHON}"
-      -m pip install --disable-pip-version-check
+      -m pip install --disable-pip-version-check --break-system-packages
       -r "${USERVER_DIR}/scripts/grpc/${file_requirements_protobuf}"
     RESULT_VARIABLE RESULT
     WORKING_DIRECTORY "${USERVER_DIR}"

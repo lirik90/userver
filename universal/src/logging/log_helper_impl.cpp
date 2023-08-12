@@ -48,8 +48,8 @@ std::string_view GetCurrentTimeString(TimePoint now) noexcept {
   const auto rounded_now =
       std::chrono::time_point_cast<std::chrono::seconds>(now);
   if (rounded_now != cached_time) {
-    fmt::format_to(cached_time_string, FMT_COMPILE("{:%FT%T}"),
-                   fmt::localtime(now));
+    fmt::format_to_n(cached_time_string, kTemplate.size(),
+                     FMT_COMPILE("{:%FT%T}"), now);
     cached_time = rounded_now;
   }
   return {cached_time_string, kTemplate.size()};
