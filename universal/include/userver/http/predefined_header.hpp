@@ -161,7 +161,7 @@ class PredefinedHeader final {
         hash{impl::UnsafeConstexprHasher{}(name)},
         header_index{impl::GetHeaderIndexForLookup(name)} {}
 
-  constexpr operator std::string_view() const { return name; }
+  constexpr operator const std::string_view&() const& { return name; }
 
   explicit operator std::string() const { return std::string{name}; }
 
@@ -194,6 +194,7 @@ struct fmt::formatter<USERVER_NAMESPACE::http::headers::PredefinedHeader>
   template <typename FormatContext>
   auto format(const USERVER_NAMESPACE::http::headers::PredefinedHeader& val,
               FormatContext& ctx) USERVER_FMT_CONST {
-    return fmt::formatter<std::string_view>::format(val, ctx);
+    const std::string_view& sv = val;
+    return fmt::formatter<std::string_view>::format({sv.data(), sv.size()}, ctx);
   }
 };
