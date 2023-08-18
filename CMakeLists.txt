@@ -95,7 +95,7 @@ include(FindPython)
 message(STATUS "Generating cmake files ...")
 execute_process(
   COMMAND ${PYTHON}
-    -m pip install --disable-pip-version-check --break-system-packages
+    -m pip install --disable-pip-version-check
     -r ${USERVER_ROOT_DIR}/scripts/external_deps/requirements.txt
   WORKING_DIRECTORY ${USERVER_ROOT_DIR}
 )
