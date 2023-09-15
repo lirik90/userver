@@ -31,4 +31,4 @@ yaml-cpp
 zlib
 makepkg|cctz
 makepkg|libbacktrace-git
-boost-stacktrace-backtrace
+makepkg|boost-stacktrace-backtrace
