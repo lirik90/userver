@@ -304,7 +304,7 @@ class Array(Schema):
 @dataclasses.dataclass
 class SchemaObjectRaw:
     type: str
-    additionalProperties: Any
+    additionalProperties: Any = True
     properties: Optional[dict] = None
     required: Optional[List[str]] = None
     nullable: bool = False
