@@ -2,6 +2,7 @@ import collections
 import contextlib
 import dataclasses
 import os
+import re
 from typing import Dict
 from typing import Generator
 from typing import List
@@ -11,6 +12,27 @@ from typing import Union
 
 from chaotic import error
 from chaotic.front import types
+
+
+@dataclasses.dataclass(init=False)
+class NameMapItem:
+    pattern: re.Pattern
+    dest: str  # string for str.format()
+
+    def __init__(self, data: str):
+        groups = data.split('=')
+        if len(groups) != 2:
+            raise Exception(f'-n arg must contain "=" ({data})')
+
+        pattern, dest = groups
+        self.pattern = re.compile(pattern)
+        self.dest = dest
+
+    def match(self, data: str) -> Optional[str]:
+        match = self.pattern.fullmatch(data)  # pylint: disable=no-member
+        if match:
+            return self.dest.format(*match.groups())
+        return None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -33,7 +55,9 @@ class ParserError(error.BaseError):
 
 class SchemaParser:
     def __init__(
-        self, *, config: ParserConfig, full_filepath: str, full_vfilepath: str,
+        self, *, config: ParserConfig,
+        full_filepath: str, full_vfilepath: str,
+        plain_object_path_map: List[NameMapItem] = None,
     ) -> None:
         self._config = config
         # Full filepath on real filesystem
@@ -41,6 +65,7 @@ class SchemaParser:
         # Full filepath on virtual filesystem, used by $ref
         self.full_vfilepath: str = full_vfilepath
         self._state = ParserState(infile_path='', schemas=dict())
+        self._plain_object_path_map = plain_object_path_map
 
     def parse_schema(self, infile_path: str, input__: dict) -> None:
         self._state.infile_path = ''
@@ -312,7 +337,20 @@ class SchemaParser:
             return self.full_vfilepath + ref
         else:
             my_ref = '/'.join(self.full_vfilepath.split('/')[:-1])
-            file, infile = ref.split('#')
+            if '#' in ref:
+                file, infile = ref.split('#')
+            else:
+                file = ref
+                if file.startswith('./'):
+                    file = file[2:]
+
+                for item in self._plain_object_path_map:
+                    infile = item.match(ref)
+                    if infile is not None:
+                        infile = infile.rstrip('/')
+                        break
+                if infile is None:
+                    self._raise(f'Invalid ref without in-file path')
             out_file = os.path.join(my_ref, file)
             # print(f'ref: {out_file} # {infile}')
             return out_file + '#' + infile

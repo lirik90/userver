@@ -1,14 +1,11 @@
 import argparse
-import dataclasses
 import os
 import pathlib
-import re
 import sys
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
-from typing import Optional
 
 import yaml
 
@@ -17,27 +14,7 @@ from chaotic.back.cpp import translator
 from chaotic.front import parser as front_parser
 from chaotic.front import ref_resolver
 from chaotic.front import types
-
-
-@dataclasses.dataclass(init=False)
-class NameMapItem:
-    pattern: re.Pattern
-    dest: str  # string for str.format()
-
-    def __init__(self, data: str):
-        groups = data.split('=')
-        if len(groups) != 2:
-            raise Exception(f'-n arg must contain "=" ({data})')
-
-        pattern, dest = groups
-        self.pattern = re.compile(pattern)
-        self.dest = dest
-
-    def match(self, data: str) -> Optional[str]:
-        match = self.pattern.fullmatch(data)  # pylint: disable=no-member
-        if match:
-            return self.dest.format(*match.groups())
-        return None
+from chaotic.front.parser import NameMapItem
 
 
 def parse_args() -> argparse.Namespace:
@@ -58,6 +35,13 @@ def parse_args() -> argparse.Namespace:
         required=True,
         action='append',
         help='full filepath to virtual filepath mapping',
+    )
+
+    parser.add_argument(
+        '--plain-object-path-map',
+        type=NameMapItem,
+        action='append',
+        help='plain object filepath to in-file path',
     )
 
     parser.add_argument(
@@ -174,8 +158,16 @@ def traverse_dfs(path: str, data: Any):
 
 def extract_schemas_to_scan(
     inp: dict, name_map: List[NameMapItem],
+    fname: str, plain_object_path_map: List[NameMapItem],
 ) -> Dict[str, Any]:
     schemas = []
+
+    if plain_object_path_map is not None and ('type' in inp) and inp['type'] == 'object':
+        for item in plain_object_path_map:
+            path = item.match(fname)
+            if path is not None:
+                schemas.append((path, inp))
+                return dict(schemas)
 
     gen = traverse_dfs('/', inp)
     ok_ = None
@@ -201,6 +193,7 @@ def read_schemas(
     name_map,
     file_map,
     dependencies: List[types.ResolvedSchemas] = [],
+    plain_object_path_map: List[NameMapItem] = None,
 ) -> types.ResolvedSchemas:
     config = front_parser.ParserConfig(erase_prefix=erase_path_prefix)
     rr = ref_resolver.RefResolver()
@@ -210,11 +203,12 @@ def read_schemas(
         with open(fname) as ifile:
             data = yaml.load(ifile, Loader=yaml.CLoader)
 
-        scan_objects = extract_schemas_to_scan(data, name_map)
+        scan_objects = extract_schemas_to_scan(data, name_map, fname, plain_object_path_map)
 
         vfilepath = vfilepath_from_filepath(fname, file_map)
         parser = front_parser.SchemaParser(
             config=config, full_filepath=fname, full_vfilepath=vfilepath,
+            plain_object_path_map=plain_object_path_map,
         )
         for path, obj in rr.sort_json_types(
             scan_objects, erase_path_prefix,
@@ -246,7 +240,11 @@ def main() -> None:
     args = parse_args()
 
     schemas = read_schemas(
-        args.erase_path_prefix, args.file, args.name_map, args.file_map,
+        erase_path_prefix=args.erase_path_prefix,
+        filepaths=args.file,
+        name_map=args.name_map,
+        file_map=args.file_map,
+        plain_object_path_map=args.plain_object_path_map,
     )
     cpp_name_func = generate_cpp_name_func(
         args.name_map, args.erase_path_prefix,
